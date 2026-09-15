@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PINAXX</title>
+  <!-- Include Nimiq Hub API Standalone UMD script -->
+  <script src="https://cdn.jsdelivr.net/npm/@nimiq/hub-api/dist/standalone/HubApi.standalone.umd.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    
+    #canvas-container { width: 100vw; height: 100vh; }
+    
+    /* Navigation UI Instructions */
+    .controls-ui {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(18, 64, 43, 0.85);
+      color: #f4eaad;
+      padding: 10px 22px;
+      border-radius: 30px;
+      border: 1px solid #d4af37;
+      pointer-events: none;
+      font-size: 0.85rem;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+      z-index: 5;
+    }
+
+    /* Main Page Wallet Button (Disconnect / Account Status) */
+    #main-wallet-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      display: none;
+    }
+
+    .main-wallet-btn {
+      background: rgba(18, 28, 22, 0.9);
+      color: #f4eaad;
+      border: 1px solid #d4af37;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .main-wallet-btn:hover {
+      background: #d4af37;
+      color: #121c16;
+    }
+
+    /* Shared View Wallet Connect Button Container */
+    #shared-wallet-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      display: none;
+    }
+
+    /* Startup Wallet Connect Overlay Modal */
+    #wallet-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(10, 18, 14, 0.92);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .wallet-modal-card {
+      background: rgba(18, 28, 22, 0.95);
+      border: 1px solid #d4af37;
+      border-radius: 16px;
+      padding: 36px;
+      width: 400px;
+      max-width: 90%;
+      text-align: center;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.8);
+      color: #f4eaad;
+    }
+
+    .wallet-modal-card h1 {
+      font-size: 1.5rem;
+      margin-bottom: 12px;
+      color: #fff;
+      letter-spacing: 1px;
+    }
+
+    .wallet-modal-card p {
+      font-size: 0.9rem;
+      color: #b8c5be;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    .modal-connect-btn {
+      width: 100%;
+      padding: 14px;
+      background: #22c55e;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4);
+      transition: opacity 0.2s;
+    }
+
+    .modal-connect-btn:hover {
+      opacity: 0.9;
+    }
+
+    /* Collapsible Dashboard Container */
+    #dashboard-container {
+      position: absolute;
+      top: 20px;
+      left: 0;
+      display: flex;
+      align-items: flex-start;
+      z-index: 10;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #dashboard-container.collapsed {
+      transform: translateX(-320px);
+    }
+
+    #dashboard {
+      width: 320px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      background: rgba(18, 28, 22, 0.95);
+      border: 1px solid #d4af37;
+      border-left: none;
+      border-radius: 0 12px 12px 0;
+      color: #f4eaad;
+      padding: 18px;
+      box-shadow: 8px 8px 32px rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+    }
+
+    #dashboard-toggle {
+      background: rgba(18, 28, 22, 0.95);
+      border: 1px solid #d4af37;
+      border-left: none;
+      color: #f4eaad;
+      padding: 12px 10px;
+      cursor: pointer;
+      border-radius: 0 8px 8px 0;
+      box-shadow: 4px 4px 12px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      user-select: none;
+      margin-top: 10px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    #dashboard-toggle:hover {
+      background: #d4af37;
+      color: #121c16;
+    }
+
+    #dashboard h2 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #d4af37;
+      padding-bottom: 6px;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .control-group {
+      margin-bottom: 14px;
+    }
+
+    .control-group label {
+      display: block;
+      font-size: 0.8rem;
+      margin-bottom: 5px;
+      color: #d8d8d8;
+    }
+
+    .control-group input[type="color"] {
+      width: 100%;
+      height: 35px;
+      border: 1px solid #d4af37;
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+    }
+
+    .control-group input[type="range"] {
+      width: 100%;
+      accent-color: #d4af37;
+    }
+
+    .file-input-wrapper {
+      margin-top: 6px;
+    }
+
+    .file-input-wrapper label {
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+
+    .file-input-wrapper input[type="file"] {
+      font-size: 0.75rem;
+      color: #ccc;
+      width: 100%;
+    }
+
+    .share-btn {
+      width: 100%;
+      padding: 10px;
+      background: #d4af37;
+      color: #121c16;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+
+    .share-btn:hover {
+      background: #f4eaad;
+    }
+
+    #dashboard::-webkit-scrollbar { width: 6px; }
+    #dashboard::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+  <!-- Startup Wallet Connect Modal Overlay -->
+  <div id="wallet-modal-overlay">
+    <div class="wallet-modal-card">
+      <h1 id="modalTitle"><i>PINAXX</i></h1>
+      <p id="modalDesc">Connect your Nimiq Mainnet wallet to enter the exhibition experience.</p>
+      <button class="modal-connect-btn" id="modalConnectBtn">Connect Nimiq Wallet</button>
+    </div>
+  </div>
+
+  <!-- Main Page Wallet Disconnect Container (Hidden for Shared Views) -->
+  <div id="main-wallet-container">
+    <button class="main-wallet-btn" id="mainWalletBtn">Disconnect</button>
+  </div>
+
+  <!-- Shared View Visitor Wallet Connect Container -->
+  <div id="shared-wallet-container">
+    <button class="main-wallet-btn" id="sharedWalletBtn">Connect Wallet</button>
+  </div>
+
+  <!-- Collapsible Dashboard Component -->
+  <div id="dashboard-container">
+    <div id="dashboard">
+      <h2>Gallery Dashboard</h2>
+
+      <!-- Wall Settings -->
+      <div class="control-group">
+        <label for="wallColor">Wall Color</label>
+        <input type="color" id="wallColor" value="#12402b">
+      </div>
+      <div class="control-group">
+        <label for="wallIntensity">Wall Color Intensity</label>
+        <input type="range" id="wallIntensity" min="0.1" max="2" step="0.1" value="1.0">
+      </div>
+
+      <!-- Lighting Settings -->
+      <div class="control-group">
+        <label for="skylightIntensity">Skylight Brightness</label>
+        <input type="range" id="skylightIntensity" min="0" max="2" step="0.1" value="0.8">
+      </div>
+      <div class="control-group">
+        <label for="glowIntensity">Warm Glow Intensity</label>
+        <input type="range" id="glowIntensity" min="0" max="2" step="0.1" value="0.6">
+      </div>
+      <div class="control-group">
+        <label for="spotlightIntensity">Picture Spotlights</label>
+        <input type="range" id="spotlightIntensity" min="0" max="4" step="0.2" value="2.2">
+      </div>
+
+      <!-- Artwork Picture Controls -->
+      <div class="control-group">
+        <label for="pictureBrightness">Picture Self-Brightness</label>
+        <input type="range" id="pictureBrightness" min="0.5" max="3" step="0.1" value="1.4">
+      </div>
+
+      <!-- Artwork Frame Settings -->
+      <div class="control-group">
+        <label for="frameNum">Frames Per Wall: <span id="frameNumVal">4</span></label>
+        <input type="range" id="frameNum" min="1" max="6" step="1" value="4">
+      </div>
+
+      <div class="control-group">
+        <label>Upload Artwork Image:</label>
+        <div class="file-input-wrapper">
+          <label for="uploadFrameIndex">Select Target Frame Slot:</label>
+          <input type="number" id="uploadFrameIndex" min="1" max="24" value="1" style="width: 100%; margin-bottom: 6px; background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 4px;">
+          <input type="file" id="artUploader" accept="image/*">
+        </div>
+      </div>
+
+      <!-- Share Link Button -->
+      <button class="share-btn" id="shareBtn">🔗 Copy Shareable Link</button>
+    </div>
+
+    <!-- Toggle Button Tab -->
+    <button id="dashboard-toggle" title="Toggle Dashboard">◀</button>
+  </div>
+
+  <div class="controls-ui">
+    🕹️ <strong>WASD / Arrow Keys</strong>: Walk Around &nbsp;|&nbsp; 🖱️ <strong>Click & Drag</strong>: Look 360° Around Room
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <!-- Three.js & OrbitControls via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    // --- Nimiq Wallet Connect Modal & Viewer Wallet Logic ---
+    const hubApi = new HubApi('https://hub.nimiq.com');
+    const walletModalOverlay = document.getElementById('wallet-modal-overlay');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalDesc = document.getElementById('modalDesc');
+    const modalConnectBtn = document.getElementById('modalConnectBtn');
+    const mainWalletContainer = document.getElementById('main-wallet-container');
+    const mainWalletBtn = document.getElementById('mainWalletBtn');
+    const sharedWalletContainer = document.getElementById('shared-wallet-container');
+    const sharedWalletBtn = document.getElementById('sharedWalletBtn');
+    
+    // URL Share Parsing
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedGalleryData = urlParams.get('gallery');
+    const isViewOnly = !!sharedGalleryData;
+
+    // Isolate storage context so visitors don't inherit the owner's session
+    let connectedAddress = null;
+    if (!isViewOnly) {
+      connectedAddress = localStorage.getItem('nimiq_connected_address') || null;
+    }
+
+    let DEFAULT_CONFIG = {
+      wallColor: '#12402b',
+      wallIntensity: 1.0,
+      skylightIntensity: 0.8,
+      glowIntensity: 0.6,
+      spotlightIntensity: 2.2,
+      pictureBrightness: 1.4,
+      framesPerWall: 4
+    };
+    let customTextures = {};
+
+    if (isViewOnly) {
+      try {
+        const decoded = JSON.parse(atob(decodeURIComponent(sharedGalleryData)));
+        if (decoded.config) DEFAULT_CONFIG = { ...DEFAULT_CONFIG, ...decoded.config };
+        if (decoded.images) {
+          Object.keys(decoded.images).forEach(slotIndex => {
+            const img = new Image();
+            img.onload = () => {
+              const texture = new THREE.Texture(img);
+              texture.needsUpdate = true;
+              customTextures[slotIndex] = texture;
+              if (artMaterials && artworkObjects.length > 0) renderAllArtworks();
+            };
+            img.src = decoded.images[slotIndex];
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse shared gallery configuration", e);
+      }
+    }
+
+    function handleWalletState() {
+      if (connectedAddress) {
+        walletModalOverlay.style.display = 'none';
+        if (!isViewOnly) {
+          mainWalletContainer.style.display = 'block';
+          mainWalletBtn.textContent = `Disconnect (${connectedAddress.substring(0, 6)}...)`;
+        } else {
+          sharedWalletContainer.style.display = 'block';
+          sharedWalletBtn.textContent = `Disconnect (${connectedAddress.substring(0, 6)}...)`;
+          sharedWalletBtn.style.background = '#22c55e';
+        }
+      } else {
+        mainWalletContainer.style.display = 'none';
+        if (isViewOnly) {
+          sharedWalletContainer.style.display = 'block';
+          sharedWalletBtn.textContent = 'Connect Wallet';
+          sharedWalletBtn.style.background = '';
+        } else {
+          sharedWalletContainer.style.display = 'none';
+        }
+      }
+    }
+
+    // Startup flow configuration: Forcing wallet connection by default
+    if (connectedAddress) {
+      handleWalletState();
+    } else {
+      walletModalOverlay.style.display = 'flex';
+      if (isViewOnly) {
+        modalTitle.textContent = "PINAXX Shared View";
+        modalDesc.textContent = "Connect your Nimiq Mainnet wallet to enter this shared exhibition experience.";
+      }
+    }
+
+    async function triggerWalletConnect(btnElement) {
+      try {
+        btnElement.textContent = 'Opening Hub...';
+        const result = await hubApi.chooseAddress({ appName: 'PINAXX' });
+        if (result && result.address) {
+          connectedAddress = result.address;
+          if (!isViewOnly) {
+            localStorage.setItem('nimiq_connected_address', connectedAddress);
+          }
+          handleWalletState();
+          if (!isViewOnly) {
+            window.location.reload();
+          }
+        }
+      } catch (error) {
+        console.error('Wallet connection failed:', error);
+        btnElement.textContent = isViewOnly ? 'Connect Wallet' : 'Connect Nimiq Wallet';
+      }
+    }
+
+    modalConnectBtn.addEventListener('click', () => triggerWalletConnect(modalConnectBtn));
+    sharedWalletBtn.addEventListener('click', () => {
+      if (connectedAddress) {
+        connectedAddress = null;
+        if (!isViewOnly) localStorage.removeItem('nimiq_connected_address');
+        handleWalletState();
+        walletModalOverlay.style.display = 'flex';
+        modalConnectBtn.textContent = 'Connect Nimiq Wallet';
+      } else {
+        triggerWalletConnect(sharedWalletBtn);
+      }
+    });
+
+    mainWalletBtn.addEventListener('click', () => {
+      connectedAddress = null;
+      localStorage.removeItem('nimiq_connected_address');
+      mainWalletContainer.style.display = 'none';
+      walletModalOverlay.style.display = 'flex';
+      modalConnectBtn.textContent = 'Connect Nimiq Wallet';
+    });
+
+    // Dashboard Open/Close Toggle Behavior & View Mode Handling
+    const dashContainer = document.getElementById('dashboard-container');
+    const dashToggleBtn = document.getElementById('dashboard-toggle');
+
+    if (isViewOnly) {
+      dashContainer.style.display = 'none';
+    } else {
+      dashContainer.classList.add('collapsed');
+      dashToggleBtn.innerText = '⚙️ Controls ▶';
+
+      dashToggleBtn.addEventListener('click', () => {
+        dashContainer.classList.toggle('collapsed');
+        dashToggleBtn.innerText = dashContainer.classList.contains('collapsed') ? '⚙️ Controls ▶' : '◀';
+      });
+    }
+
+    // 1. Scene, Camera, & Renderer Setup
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0e2318);
+    scene.fog = new THREE.FogExp2(0x0e2318, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 2, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // 2. Camera Controls
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableZoom = false;
+    controls.maxPolarAngle = Math.PI / 2 + 0.05;
+    controls.minPolarAngle = Math.PI / 3;
+    controls.target.set(0, 2, -1);
+
+    // 3. Lighting Setup
+    const hemiLight = new THREE.HemisphereLight(0xfffdf0, 0x12402b, 0.7);
+    scene.add(hemiLight);
+
+    const skylight = new THREE.DirectionalLight(0xfffaea, DEFAULT_CONFIG.skylightIntensity);
+    skylight.position.set(0, 15, 0);
+    skylight.castShadow = true;
+    scene.add(skylight);
+
+    const ambientLight = new THREE.AmbientLight(0xfff5e6, 0.5);
+    scene.add(ambientLight);
+
+    const centerGlow = new THREE.PointLight(0xffe2b3, DEFAULT_CONFIG.glowIntensity, 30);
+    centerGlow.position.set(0, 6, 0);
+    scene.add(centerGlow);
+
+    // 4. Room Dimensions & Floor Setup
+    const textureLoader = new THREE.TextureLoader();
+    const ROOM_SIZE = 24; 
+    const WALL_HEIGHT = 9;
+    const halfRoom = ROOM_SIZE / 2;
+
+    const floorGroup = new THREE.Group();
+    const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x5a5c5e, roughness: 0.4, metalness: 0.1 });
+    const mainFloor = new THREE.Mesh(floorGeo, floorMat);
+    mainFloor.rotation.x = -Math.PI / 2;
+    mainFloor.receiveShadow = true;
+    floorGroup.add(mainFloor);
+
+    const tileDarkMat = new THREE.MeshStandardMaterial({ color: 0x3d3f41, roughness: 0.3, metalness: 0.15 });
+    const tileLightMat = new THREE.MeshStandardMaterial({ color: 0x8e9094, roughness: 0.35, metalness: 0.1 });
+    const borderMat = new THREE.MeshStandardMaterial({ color: 0x222426, roughness: 0.2, metalness: 0.3 });
+    const goldAccentMat = new THREE.MeshStandardMaterial({ color: 0xc5a059, roughness: 0.3, metalness: 0.7 });
+
+    const tileSize = 2;
+    const gridCount = 8;
+    const startOffset = -((gridCount * tileSize) / 2) + (tileSize / 2);
+
+    for (let i = 0; i < gridCount; i++) {
+      for (let j = 0; j < gridCount; j++) {
+        const isAlternate = (i + j) % 2 === 0;
+        const tileMat = isAlternate ? tileLightMat : tileDarkMat;
+        const tileGeo = new THREE.PlaneGeometry(tileSize - 0.08, tileSize - 0.08);
+        const tileMesh = new THREE.Mesh(tileGeo, tileMat);
+        tileMesh.rotation.x = -Math.PI / 2;
+        tileMesh.position.set(startOffset + (i * tileSize), 0.01, startOffset + (j * tileSize));
+        tileMesh.receiveShadow = true;
+        floorGroup.add(tileMesh);
+      }
+    }
+
+    const borderThickness = 0.6;
+    const borderPos = 9;
+    const outerBorderGeo = new THREE.PlaneGeometry(18.8, borderThickness);
+    
+    const b1 = new THREE.Mesh(outerBorderGeo, borderMat); b1.rotation.x = -Math.PI / 2; b1.position.set(0, 0.015, -borderPos); floorGroup.add(b1);
+    const b2 = new THREE.Mesh(outerBorderGeo, borderMat); b2.rotation.x = -Math.PI / 2; b2.position.set(0, 0.015, borderPos); floorGroup.add(b2);
+    const b3 = new THREE.Mesh(outerBorderGeo, borderMat); b3.rotation.x = -Math.PI / 2; b3.rotation.z = Math.PI / 2; b3.position.set(borderPos, 0.015, 0); floorGroup.add(b3);
+    const b4 = new THREE.Mesh(outerBorderGeo, borderMat); b4.rotation.x = -Math.PI / 2; b4.rotation.z = Math.PI / 2; b4.position.set(-borderPos, 0.015, 0); floorGroup.add(b4);
+
+    const inlayGeo = new THREE.PlaneGeometry(18.8, 0.08);
+    const g1 = new THREE.Mesh(inlayGeo, goldAccentMat); g1.rotation.x = -Math.PI / 2; g1.position.set(0, 0.02, -borderPos + 0.35); floorGroup.add(g1);
+    const g2 = new THREE.Mesh(inlayGeo, goldAccentMat); g2.rotation.x = -Math.PI / 2; g2.position.set(0, 0.02, borderPos - 0.35); floorGroup.add(g2);
+    const g3 = new THREE.Mesh(inlayGeo, goldAccentMat); g3.rotation.x = -Math.PI / 2; g3.rotation.z = Math.PI / 2; g3.position.set(borderPos - 0.35, 0.02, 0); floorGroup.add(g3);
+    const g4 = new THREE.Mesh(inlayGeo, goldAccentMat); g4.rotation.x = -Math.PI / 2; g4.rotation.z = Math.PI / 2; g4.position.set(-borderPos + 0.35, 0.02, 0); floorGroup.add(g4);
+
+    scene.add(floorGroup);
+
+    // 5. Ceiling Setup with Cloud Texture & Border
+    function generateCloudCeilingTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+
+      const skyGradient = ctx.createLinearGradient(0, 0, 1024, 1024);
+      skyGradient.addColorStop(0, '#599cd4');
+      skyGradient.addColorStop(0.5, '#7bb3e8');
+      skyGradient.addColorStop(1, '#4a8bc2');
+      ctx.fillStyle = skyGradient;
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      function drawCloudPuff(x, y, radius, opacity) {
+        const cloudGradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        cloudGradient.addColorStop(0, `rgba(255, 255, 255, ${opacity})`);
+        cloudGradient.addColorStop(0.5, `rgba(240, 246, 255, ${opacity * 0.7})`);
+        cloudGradient.addColorStop(0.85, `rgba(215, 230, 245, ${opacity * 0.2})`);
+        cloudGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = cloudGradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (let i = 0; i < 45; i++) {
+        const cx = Math.random() * 1024;
+        const cy = Math.random() * 1024;
+        const puffCount = 8 + Math.floor(Math.random() * 10);
+        for (let j = 0; j < puffCount; j++) {
+          const offsetX = (Math.random() - 0.5) * 160;
+          const offsetY = (Math.random() - 0.5) * 120;
+          const radius = 60 + Math.random() * 90;
+          const opacity = 0.35 + Math.random() * 0.45;
+          drawCloudPuff(cx + offsetX, cy + offsetY, radius, opacity);
+        }
+      }
+
+      const borderWidth = 48;
+      ctx.strokeStyle = '#f5f2eb';
+      ctx.lineWidth = borderWidth;
+      ctx.strokeRect(borderWidth / 2, borderWidth / 2, 1024 - borderWidth, 1024 - borderWidth);
+
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(borderWidth + 10, borderWidth + 10, 1024 - (borderWidth + 10) * 2, 1024 - (borderWidth + 10) * 2);
+
+      const corners = [
+        [borderWidth + 10, borderWidth + 10],
+        [1024 - borderWidth - 10, borderWidth + 10],
+        [borderWidth + 10, 1024 - borderWidth - 10],
+        [1024 - borderWidth - 10, 1024 - borderWidth - 10]
+      ];
+      ctx.fillStyle = '#d4af37';
+      corners.forEach(([cx, cy]) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const ceilingGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+    const ceilingMat = new THREE.MeshStandardMaterial({ map: generateCloudCeilingTexture(), roughness: 0.7, metalness: 0.0 });
+    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+    ceiling.position.y = WALL_HEIGHT;
+    ceiling.rotation.x = Math.PI / 2;
+    scene.add(ceiling);
+
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0xf5f2eb, roughness: 0.3 });
+    const crownGoldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8, roughness: 0.3 });
+    const crownGeo = new THREE.BoxGeometry(ROOM_SIZE, 0.4, 0.4);
+    const crownGoldGeo = new THREE.BoxGeometry(ROOM_SIZE, 0.1, 0.1);
+
+    function addCrownMolding(x, z, rotY) {
+      const crown = new THREE.Mesh(crownGeo, crownMat); crown.position.set(x, WALL_HEIGHT - 0.2, z); crown.rotation.y = rotY; scene.add(crown);
+      const crownGold = new THREE.Mesh(crownGoldGeo, crownGoldMat); crownGold.position.set(x, WALL_HEIGHT - 0.4, z); crownGold.rotation.y = rotY; scene.add(crownGold);
+    }
+    addCrownMolding(0, -halfRoom + 0.2, 0);
+    addCrownMolding(0, halfRoom - 0.2, 0);
+    addCrownMolding(-halfRoom + 0.2, 0, Math.PI / 2);
+    addCrownMolding(halfRoom - 0.2, 0, Math.PI / 2);
+
+    // 6. Wall & Dynamic Artwork Setup
+    let baseWallColor = new THREE.Color(DEFAULT_CONFIG.wallColor);
+    let wallIntensity = DEFAULT_CONFIG.wallIntensity;
+
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: baseWallColor.clone().multiplyScalar(wallIntensity),
+      roughness: 0.6,
+      metalness: 0.1
+    });
+
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0xf5f2eb, roughness: 0.3 });
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.2, roughness: 0.5 });
+    const goldTrimMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8, roughness: 0.3 });
+
+    function createWall(x, z, rotationY) {
+      const wallGeo = new THREE.PlaneGeometry(ROOM_SIZE, WALL_HEIGHT);
+      const wall = new THREE.Mesh(wallGeo, wallMat);
+      wall.position.set(x, WALL_HEIGHT / 2, z);
+      wall.rotation.y = rotationY;
+      wall.receiveShadow = true;
+      scene.add(wall);
+
+      const trimGeo = new THREE.BoxGeometry(ROOM_SIZE, 1.2, 0.08);
+      const trim = new THREE.Mesh(trimGeo, trimMat);
+      const goldLineGeo = new THREE.BoxGeometry(ROOM_SIZE, 0.1, 0.1);
+      const goldLine = new THREE.Mesh(goldLineGeo, goldTrimMat);
+
+      const rot = rotationY;
+      const trimOffset = 0.04;
+      trim.position.set(x + Math.sin(rot) * trimOffset, 0.6, z + Math.cos(rot) * trimOffset);
+      trim.rotation.y = rot;
+      scene.add(trim);
+
+      goldLine.position.set(x + Math.sin(rot) * (trimOffset + 0.02), 1.25, z + Math.cos(rot) * (trimOffset + 0.02));
+      goldLine.rotation.y = rot;
+      scene.add(goldLine);
+    }
+
+    createWall(0, -halfRoom, 0);
+    createWall(-halfRoom, 0, Math.PI / 2);
+    createWall(halfRoom, 0, -Math.PI / 2);
+    createWall(0, halfRoom, Math.PI);
+
+    let artworkObjects = [];
+    let spotlightObjects = [];
+    let artMaterials = [];
+    const customImageBase64 = {};
+
+    function clearArtworks() {
+      artworkObjects.forEach(obj => scene.remove(obj));
+      spotlightObjects.forEach(spot => scene.remove(spot));
+      artworkObjects = [];
+      spotlightObjects = [];
+      artMaterials = [];
+    }
+
+    function generateWallOffsets(count) {
+      const offsets = [];
+      const usableWidth = ROOM_SIZE - 5;
+      const step = usableWidth / (count + 1);
+      for (let i = 1; i <= count; i++) {
+        offsets.push(-usableWidth / 2 + step * i);
+      }
+      return offsets;
+    }
+
+    function addArtwork(slotIndex, url, x, y, z, rotationY, spotTargetOffset) {
+      const frameGroup = new THREE.Group();
+
+      const frameGeo = new THREE.BoxGeometry(2.3, 2.9, 0.12);
+      const frame = new THREE.Mesh(frameGeo, frameMat);
+      frame.castShadow = true;
+      frameGroup.add(frame);
+
+      const artGeo = new THREE.PlaneGeometry(2, 2.6);
+      
+      const currentBrightness = DEFAULT_CONFIG.pictureBrightness;
+      const artMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0xffffff).multiplyScalar(currentBrightness),
+        roughness: 0.2,
+        metalness: 0.0
+      });
+
+      if (customTextures[slotIndex]) {
+        artMat.map = customTextures[slotIndex];
+      } else {
+        textureLoader.load(url, (texture) => {
+          artMat.map = texture;
+          artMat.needsUpdate = true;
+        });
+      }
+
+      artMaterials.push(artMat);
+
+      const art = new THREE.Mesh(artGeo, artMat);
+      art.position.z = 0.07;
+      art.name = `artMesh_${slotIndex}`;
+      frameGroup.add(art);
+
+      frameGroup.position.set(x, y, z);
+      frameGroup.rotation.y = rotationY;
+      scene.add(frameGroup);
+      artworkObjects.push(frameGroup);
+
+      const spotVal = DEFAULT_CONFIG.spotlightIntensity;
+      const spot = new THREE.SpotLight(0xfff0cb, spotVal, 8, Math.PI / 4, 0.4);
+      spot.position.set(x + spotTargetOffset.x, y + 1.8, z + spotTargetOffset.z);
+      spot.target = frame;
+      scene.add(spot);
+      spotlightObjects.push(spot);
+    }
+
+    function renderAllArtworks() {
+      clearArtworks();
+      const count = DEFAULT_CONFIG.framesPerWall;
+      const offsets = generateWallOffsets(count);
+      let slotCounter = 1;
+
+      offsets.forEach((offset, idx) => {
+        addArtwork(slotCounter, `https://picsum.photos/id/${1015 + idx}/400/500`, offset, 4.2, -halfRoom + 0.1, 0, { x: 0, z: 1.8 });
+        slotCounter++;
+      });
+      offsets.forEach((offset, idx) => {
+        addArtwork(slotCounter, `https://picsum.photos/id/${1025 + idx}/400/500`, -halfRoom + 0.1, 4.2, offset, Math.PI / 2, { x: 1.8, z: 0 });
+        slotCounter++;
+      });
+      offsets.forEach((offset, idx) => {
+        addArtwork(slotCounter, `https://picsum.photos/id/${1035 + idx}/400/500`, halfRoom - 0.1, 4.2, offset, -Math.PI / 2, { x: -1.8, z: 0 });
+        slotCounter++;
+      });
+      offsets.forEach((offset, idx) => {
+        addArtwork(slotCounter, `https://picsum.photos/id/${1045 + idx}/400/500`, offset, 4.2, halfRoom - 0.1, Math.PI, { x: 0, z: -1.8 });
+        slotCounter++;
+      });
+    }
+
+    function applyDefaults() {
+      if (!isViewOnly) {
+        document.getElementById('wallColor').value = DEFAULT_CONFIG.wallColor;
+        document.getElementById('wallIntensity').value = DEFAULT_CONFIG.wallIntensity;
+        document.getElementById('skylightIntensity').value = DEFAULT_CONFIG.skylightIntensity;
+        document.getElementById('glowIntensity').value = DEFAULT_CONFIG.glowIntensity;
+        document.getElementById('spotlightIntensity').value = DEFAULT_CONFIG.spotlightIntensity;
+        document.getElementById('pictureBrightness').value = DEFAULT_CONFIG.pictureBrightness;
+        document.getElementById('frameNum').value = DEFAULT_CONFIG.framesPerWall;
+        document.getElementById('frameNumVal').innerText = DEFAULT_CONFIG.framesPerWall;
+      }
+      
+      baseWallColor.set(DEFAULT_CONFIG.wallColor);
+      wallIntensity = DEFAULT_CONFIG.wallIntensity;
+      wallMat.color.copy(baseWallColor).multiplyScalar(wallIntensity);
+      
+      skylight.intensity = DEFAULT_CONFIG.skylightIntensity;
+      centerGlow.intensity = DEFAULT_CONFIG.glowIntensity;
+      
+      renderAllArtworks();
+    }
+
+    applyDefaults();
+
+    // 7. Dashboard Event Listeners
+    if (!isViewOnly) {
+      document.getElementById('wallColor').addEventListener('input', (e) => {
+        baseWallColor.set(e.target.value);
+        wallMat.color.copy(baseWallColor).multiplyScalar(wallIntensity);
+      });
+
+      document.getElementById('wallIntensity').addEventListener('input', (e) => {
+        wallIntensity = parseFloat(e.target.value);
+        wallMat.color.copy(baseWallColor).multiplyScalar(wallIntensity);
+      });
+
+      document.getElementById('skylightIntensity').addEventListener('input', (e) => {
+        skylight.intensity = parseFloat(e.target.value);
+      });
+
+      document.getElementById('glowIntensity').addEventListener('input', (e) => {
+        centerGlow.intensity = parseFloat(e.target.value);
+      });
+
+      document.getElementById('spotlightIntensity').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        spotlightObjects.forEach(spot => spot.intensity = val);
+      });
+
+      document.getElementById('pictureBrightness').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        artMaterials.forEach(mat => {
+          mat.color.setRGB(val, val, val);
+        });
+      });
+
+      document.getElementById('frameNum').addEventListener('input', (e) => {
+        document.getElementById('frameNumVal').innerText = e.target.value;
+        DEFAULT_CONFIG.framesPerWall = parseInt(e.target.value);
+        renderAllArtworks();
+      });
+
+      document.getElementById('artUploader').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        const slotIndex = parseInt(document.getElementById('uploadFrameIndex').value);
+
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(event) {
+            const dataUrl = event.target.result;
+            customImageBase64[slotIndex] = dataUrl;
+
+            const img = new Image();
+            img.onload = function() {
+              const texture = new THREE.Texture(img);
+              texture.needsUpdate = true;
+              customTextures[slotIndex] = texture;
+
+              const targetMesh = scene.getObjectByName(`artMesh_${slotIndex}`);
+              if (targetMesh) {
+                targetMesh.material.map = texture;
+                targetMesh.material.needsUpdate = true;
+              } else {
+                renderAllArtworks();
+              }
+            };
+            img.src = dataUrl;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      // Share Link Generation logic (Excludes owner wallet info)
+      document.getElementById('shareBtn').addEventListener('click', () => {
+        const galleryState = {
+          config: {
+            wallColor: document.getElementById('wallColor').value,
+            wallIntensity: parseFloat(document.getElementById('wallIntensity').value),
+            skylightIntensity: parseFloat(document.getElementById('skylightIntensity').value),
+            glowIntensity: parseFloat(document.getElementById('glowIntensity').value),
+            spotlightIntensity: parseFloat(document.getElementById('spotlightIntensity').value),
+            pictureBrightness: parseFloat(document.getElementById('pictureBrightness').value),
+            framesPerWall: parseInt(document.getElementById('frameNum').value)
+          },
+          images: customImageBase64
+        };
+
+        const encodedState = encodeURIComponent(btoa(JSON.stringify(galleryState)));
+        const shareUrl = `${window.location.origin}${window.location.pathname}?gallery=${encodedState}`;
+
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          alert('Gallery link copied to clipboard! Anyone opening this link will view your customized gallery layout without revealing your personal wallet address.');
+        }).catch(() => {
+          prompt('Copy your gallery link:', shareUrl);
+        });
+      });
+    }
+
+    // 8. WASD & Keyboard Arrow Navigation Controls
+    const keys = { 
+      w: false, a: false, s: false, d: false,
+      arrowup: false, arrowdown: false, arrowleft: false, arrowright: false 
+    };
+    const moveSpeed = 0.14;
+
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement.tagName === 'INPUT') return;
+      const key = e.key.toLowerCase();
+      if (keys.hasOwnProperty(key)) {
+        keys[key] = true;
+        if (key.startsWith('arrow')) e.preventDefault();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (document.activeElement.tagName === 'INPUT') return;
+      const key = e.key.toLowerCase();
+      if (keys.hasOwnProperty(key)) {
+        keys[key] = false;
+        if (key.startsWith('arrow')) e.preventDefault();
+      }
+    });
+
+    function updateMovement() {
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      dir.y = 0;
+      dir.normalize();
+
+      const sideDir = new THREE.Vector3().crossVectors(camera.up, dir).negate();
+
+      const moveForward = keys.w || keys.arrowup;
+      const moveBackward = keys.s || keys.arrowdown;
+      const moveLeft = keys.a || keys.arrowleft;
+      const moveRight = keys.d || keys.arrowright;
+
+      if (moveForward) { camera.position.addScaledVector(dir, moveSpeed); controls.target.addScaledVector(dir, moveSpeed); }
+      if (moveBackward) { camera.position.addScaledVector(dir, -moveSpeed); controls.target.addScaledVector(dir, -moveSpeed); }
+      if (moveLeft) { camera.position.addScaledVector(sideDir, -moveSpeed); controls.target.addScaledVector(sideDir, -moveSpeed); }
+      if (moveRight) { camera.position.addScaledVector(sideDir, moveSpeed); controls.target.addScaledVector(sideDir, moveSpeed); }
+
+      const bound = halfRoom - 1.8;
+      camera.position.x = Math.max(-bound, Math.min(bound, camera.position.x));
+      camera.position.z = Math.max(-bound, Math.min(bound, camera.position.z));
+    }
+
+    // 9. Animation Loop
+    function animate() {
+      requestAnimationFrame(animate);
+      updateMovement();
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
