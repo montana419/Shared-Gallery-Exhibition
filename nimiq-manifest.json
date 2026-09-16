@@ -5,5 +5,9 @@
   "icon": "icon.png",
   "start_url": "/",
   "theme_color": "#1f253d",
-  "scopes": ["address"]
+  "scopes": ["address", "payments"],
+  "mini_app": {
+    "version": "1.0.0",
+    "supported_features": ["payment"]
+  }
 }

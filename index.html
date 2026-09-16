@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PINAXX Mini App</title>
+  <title>PINAXX</title>
+  <!-- Include Nimiq Hub API Standalone UMD script -->
+  <script src="https://cdn.jsdelivr.net/npm/@nimiq/hub-api/dist/standalone/HubApi.standalone.umd.js"></script>
+  <!-- Include Nimiq Mini App SDK Standalone script -->
+  <script src="https://cdn.jsdelivr.net/npm/@nimiq/mini-app-sdk/dist/index.umd.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -253,12 +257,12 @@
   <div id="wallet-modal-overlay">
     <div class="wallet-modal-card">
       <h1 id="modalTitle"><i>PINAXX</i></h1>
-      <p id="modalDesc">Connect your Nimiq Wallet via Nimiq Pay to enter the exhibition experience.</p>
+      <p id="modalDesc">Connect your Nimiq Mainnet wallet to enter the exhibition experience.</p>
       <button class="modal-connect-btn" id="modalConnectBtn">Connect Nimiq Wallet</button>
     </div>
   </div>
 
-  <!-- Main Page Wallet Disconnect Container (Hidden for Shared Views) -->
+  <!-- Main Page Wallet Disconnect Container -->
   <div id="main-wallet-container">
     <button class="main-wallet-btn" id="mainWalletBtn">Disconnect</button>
   </div>
@@ -336,8 +340,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
-  <script>
-    // --- Nimiq Mini App Provider Integration ---
+  <!-- Import Wallet Logic as ES Module -->
+  <script type="module">
+    import { initWalletConnection, connectWallet, disconnectWallet } from './wallet.js';
+
     const walletModalOverlay = document.getElementById('wallet-modal-overlay');
     const modalTitle = document.getElementById('modalTitle');
     const modalDesc = document.getElementById('modalDesc');
@@ -346,16 +352,59 @@
     const mainWalletBtn = document.getElementById('mainWalletBtn');
     const sharedWalletContainer = document.getElementById('shared-wallet-container');
     const sharedWalletBtn = document.getElementById('sharedWalletBtn');
-    
-    // URL Share Parsing
+
+    function handleWalletStateUI(state) {
+      if (state.connectedAddress) {
+        walletModalOverlay.style.display = 'none';
+        if (!state.isViewOnly) {
+          mainWalletContainer.style.display = 'block';
+          mainWalletBtn.textContent = `Disconnect (${state.connectedAddress.substring(0, 6)}...)`;
+        } else {
+          sharedWalletContainer.style.display = 'block';
+          sharedWalletBtn.textContent = `Disconnect (${state.connectedAddress.substring(0, 6)}...)`;
+          sharedWalletBtn.style.background = '#22c55e';
+        }
+      } else {
+        mainWalletContainer.style.display = 'none';
+        if (state.isViewOnly) {
+          sharedWalletContainer.style.display = 'block';
+          sharedWalletBtn.textContent = 'Connect Wallet';
+          sharedWalletBtn.style.background = '';
+        } else {
+          sharedWalletContainer.style.display = 'none';
+          walletModalOverlay.style.display = 'flex';
+        }
+      }
+    }
+
+    const callbacks = { onStateUpdate: handleWalletStateUI };
+
+    // Initialize Wallet Module
+    initWalletConnection(callbacks);
+
+    modalConnectBtn.addEventListener('click', () => connectWallet(modalConnectBtn, callbacks));
+    sharedWalletBtn.addEventListener('click', () => {
+      const isConnected = sharedWalletBtn.textContent.includes('Disconnect');
+      if (isConnected) {
+        disconnectWallet(callbacks);
+        walletModalOverlay.style.display = 'flex';
+        modalConnectBtn.textContent = 'Connect Nimiq Wallet';
+      } else {
+        connectWallet(sharedWalletBtn, callbacks);
+      }
+    });
+
+    mainWalletBtn.addEventListener('click', () => {
+      disconnectWallet(callbacks);
+      mainWalletContainer.style.display = 'none';
+      walletModalOverlay.style.display = 'flex';
+      modalConnectBtn.textContent = 'Connect Nimiq Wallet';
+    });
+
+    // Share state URL parsing logic
     const urlParams = new URLSearchParams(window.location.search);
     const sharedGalleryData = urlParams.get('gallery');
     const isViewOnly = !!sharedGalleryData;
-
-    let connectedAddress = null;
-    if (!isViewOnly) {
-      connectedAddress = localStorage.getItem('nimiq_connected_address') || null;
-    }
 
     let DEFAULT_CONFIG = {
       wallColor: '#12402b',
@@ -388,91 +437,6 @@
         console.error("Failed to parse shared gallery configuration", e);
       }
     }
-
-    function handleWalletState() {
-      if (connectedAddress) {
-        walletModalOverlay.style.display = 'none';
-        if (!isViewOnly) {
-          mainWalletContainer.style.display = 'block';
-          mainWalletBtn.textContent = `Disconnect (${connectedAddress.substring(0, 6)}...)`;
-        } else {
-          sharedWalletContainer.style.display = 'block';
-          sharedWalletBtn.textContent = `Disconnect (${connectedAddress.substring(0, 6)}...)`;
-          sharedWalletBtn.style.background = '#22c55e';
-        }
-      } else {
-        mainWalletContainer.style.display = 'none';
-        if (isViewOnly) {
-          sharedWalletContainer.style.display = 'block';
-          sharedWalletBtn.textContent = 'Connect Wallet';
-          sharedWalletBtn.style.background = '';
-        } else {
-          sharedWalletContainer.style.display = 'none';
-        }
-      }
-    }
-
-    if (connectedAddress) {
-      handleWalletState();
-    } else {
-      walletModalOverlay.style.display = 'flex';
-      if (isViewOnly) {
-        modalTitle.textContent = "PINAXX Shared View";
-        modalDesc.textContent = "Connect your Nimiq wallet to enter this shared exhibition experience.";
-      }
-    }
-
-    // Refactored to use Nimiq Mini App Injected Provider interface
-    async function triggerWalletConnect(btnElement) {
-      try {
-        btnElement.textContent = 'Connecting...';
-        
-        let accounts = [];
-        if (window.nimiq && typeof window.nimiq.request === 'function') {
-          accounts = await window.nimiq.request({ method: 'eth_requestAccounts' });
-        } else if (window.ethereum) {
-          accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        } else {
-          throw new Error('No Nimiq Mini App or Web3 provider detected in context.');
-        }
-
-        if (accounts && accounts.length > 0) {
-          connectedAddress = accounts[0];
-          if (!isViewOnly) {
-            localStorage.setItem('nimiq_connected_address', connectedAddress);
-          }
-          handleWalletState();
-          if (!isViewOnly) {
-            window.location.reload();
-          }
-        }
-      } catch (error) {
-        console.error('Wallet connection failed:', error);
-        alert('Provider Connection Failed: Please ensure you are running this app within Nimiq Pay or a Mini App container.');
-        btnElement.textContent = isViewOnly ? 'Connect Wallet' : 'Connect Nimiq Wallet';
-      }
-    }
-
-    modalConnectBtn.addEventListener('click', () => triggerWalletConnect(modalConnectBtn));
-    sharedWalletBtn.addEventListener('click', () => {
-      if (connectedAddress) {
-        connectedAddress = null;
-        if (!isViewOnly) localStorage.removeItem('nimiq_connected_address');
-        handleWalletState();
-        walletModalOverlay.style.display = 'flex';
-        modalConnectBtn.textContent = 'Connect Nimiq Wallet';
-      } else {
-        triggerWalletConnect(sharedWalletBtn);
-      }
-    });
-
-    mainWalletBtn.addEventListener('click', () => {
-      connectedAddress = null;
-      localStorage.removeItem('nimiq_connected_address');
-      mainWalletContainer.style.display = 'none';
-      walletModalOverlay.style.display = 'flex';
-      modalConnectBtn.textContent = 'Connect Nimiq Wallet';
-    });
 
     // Dashboard Open/Close Toggle Behavior
     const dashContainer = document.getElementById('dashboard-container');
@@ -581,7 +545,7 @@
 
     scene.add(floorGroup);
 
-    // 5. Ceiling Setup with Cloud Texture & Border
+    // 5. Ceiling Setup
     function generateCloudCeilingTexture() {
       const canvas = document.createElement('canvas');
       canvas.width = 1024;
@@ -894,6 +858,7 @@
         }
       });
 
+      // Share Link Generation
       document.getElementById('shareBtn').addEventListener('click', () => {
         const galleryState = {
           config: {
@@ -912,7 +877,7 @@
         const shareUrl = `${window.location.origin}${window.location.pathname}?gallery=${encodedState}`;
 
         navigator.clipboard.writeText(shareUrl).then(() => {
-          alert('Gallery link copied to clipboard!');
+          alert('Gallery link copied to clipboard! Anyone opening this link will view your customized gallery layout without revealing your personal wallet address.');
         }).catch(() => {
           prompt('Copy your gallery link:', shareUrl);
         });
