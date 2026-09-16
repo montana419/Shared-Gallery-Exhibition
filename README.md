@@ -1,6 +1,6 @@
 # 🏛️ PINAXX
 
-A responsive 3D virtual art gallery experience built with **Three.js** and integrated with native crypto tipping in **NIM** (via Nimiq Hub API) and **USDC** (via Web3 / Ethereum / Polygon).
+A responsive 3D virtual art gallery experience built with **Three.js**  
 
 ---
 
