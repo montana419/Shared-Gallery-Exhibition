@@ -1,0 +1,9 @@
+{
+  "name": "Nimiq 3D Gallery",
+  "short_name": "3D Gallery",
+  "description": "3D Web Gallery powered by Three.js and Nimiq",
+  "icon": "icon.png",
+  "start_url": "/",
+  "theme_color": "#1f253d",
+  "scopes": ["address"]
+}

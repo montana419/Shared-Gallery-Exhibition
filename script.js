@@ -21,25 +21,25 @@ function handleScroll() {
   const scrollFraction = window.scrollY / scrollMax;
   const walkDistance = -scrollFraction * 3400; // Adjust total length as needed
   
-  wall.style.transform = `translateX(${walkDistance}px)`;
+  if (wall) {
+    wall.style.transform = `translateX(${walkDistance}px)`;
+  }
 }
 
 window.addEventListener('scroll', handleScroll, { passive: true });
 
 // 2. Mouse-Look Mechanics with Smooth Interpolation (LERP)
 window.addEventListener('mousemove', (e) => {
-  // Normalize cursor coordinates from -0.5 to 0.5
   targetX = (e.clientX / window.innerWidth) - 0.5;
   targetY = (e.clientY / window.innerHeight) - 0.5;
 });
 
 function updateCameraTilt() {
-  // Linear interpolation for silky smooth rotation transitions
   currentX += (targetX - currentX) * 0.08;
   currentY += (targetY - currentY) * 0.08;
 
-  const rotateY = currentX * 18; // Max Y-rotation in degrees
-  const rotateX = -currentY * 12; // Max X-rotation in degrees
+  const rotateY = currentX * 18;
+  const rotateX = -currentY * 12;
 
   if (room) {
     room.style.transform = `rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg)`;
@@ -51,28 +51,29 @@ requestAnimationFrame(updateCameraTilt);
 
 // 3. Hover & Click Interactivity for Artwork Frames
 frames.forEach(frame => {
-  // Background focus state on hover
-  frame.addEventListener('mouseenter', () => wall.classList.add('has-hover'));
-  frame.addEventListener('mouseleave', () => wall.classList.remove('has-hover'));
+  frame.addEventListener('mouseenter', () => wall && wall.classList.add('has-hover'));
+  frame.addEventListener('mouseleave', () => wall && wall.classList.remove('has-hover'));
 
-  // "Walk Up To Picture" Animation Sequence on Click
   frame.addEventListener('click', () => {
     const img = frame.querySelector('img');
     const title = frame.getAttribute('data-title') || 'Untitled Artwork';
 
     if (!img) return;
 
-    // Step 1: Trigger camera walk-up animation
     frame.classList.add('stepping-in');
 
-    // Step 2: Display Lightbox
     setTimeout(() => {
-      lightboxImg.src = img.src;
-      lightboxImg.alt = title;
-      lightboxTitle.textContent = title;
-      lightbox.classList.add('active');
+      if (lightboxImg) {
+        lightboxImg.src = img.src;
+        lightboxImg.alt = title;
+      }
+      if (lightboxTitle) {
+        lightboxTitle.textContent = title;
+      }
+      if (lightbox) {
+        lightbox.classList.add('active');
+      }
 
-      // Step 3: Reset step-in class behind overlay
       setTimeout(() => {
         frame.classList.remove('stepping-in');
       }, 300);
@@ -82,7 +83,9 @@ frames.forEach(frame => {
 
 // 4. Lightbox Dismissal Handlers
 function closeLightbox() {
-  lightbox.classList.remove('active');
+  if (lightbox) {
+    lightbox.classList.remove('active');
+  }
 }
 
 if (closeBtn) {
@@ -95,9 +98,8 @@ if (lightbox) {
   });
 }
 
-// Keyboard shortcut (ESC key) to dismiss lightbox
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && lightbox.classList.contains('active')) {
+  if (e.key === 'Escape' && lightbox && lightbox.classList.contains('active')) {
     closeLightbox();
   }
 });

@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PINAXX</title>
-  <!-- Include Nimiq Hub API Standalone UMD script -->
-  <script src="https://cdn.jsdelivr.net/npm/@nimiq/hub-api/dist/standalone/HubApi.standalone.umd.js"></script>
+  <title>PINAXX Mini App</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -255,7 +253,7 @@
   <div id="wallet-modal-overlay">
     <div class="wallet-modal-card">
       <h1 id="modalTitle"><i>PINAXX</i></h1>
-      <p id="modalDesc">Connect your Nimiq Mainnet wallet to enter the exhibition experience.</p>
+      <p id="modalDesc">Connect your Nimiq Wallet via Nimiq Pay to enter the exhibition experience.</p>
       <button class="modal-connect-btn" id="modalConnectBtn">Connect Nimiq Wallet</button>
     </div>
   </div>
@@ -339,8 +337,7 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <script>
-    // --- Nimiq Wallet Connect Modal & Viewer Wallet Logic ---
-    const hubApi = new HubApi('https://hub.nimiq.com');
+    // --- Nimiq Mini App Provider Integration ---
     const walletModalOverlay = document.getElementById('wallet-modal-overlay');
     const modalTitle = document.getElementById('modalTitle');
     const modalDesc = document.getElementById('modalDesc');
@@ -355,7 +352,6 @@
     const sharedGalleryData = urlParams.get('gallery');
     const isViewOnly = !!sharedGalleryData;
 
-    // Isolate storage context so visitors don't inherit the owner's session
     let connectedAddress = null;
     if (!isViewOnly) {
       connectedAddress = localStorage.getItem('nimiq_connected_address') || null;
@@ -416,23 +412,32 @@
       }
     }
 
-    // Startup flow configuration: Forcing wallet connection by default
     if (connectedAddress) {
       handleWalletState();
     } else {
       walletModalOverlay.style.display = 'flex';
       if (isViewOnly) {
         modalTitle.textContent = "PINAXX Shared View";
-        modalDesc.textContent = "Connect your Nimiq Mainnet wallet to enter this shared exhibition experience.";
+        modalDesc.textContent = "Connect your Nimiq wallet to enter this shared exhibition experience.";
       }
     }
 
+    // Refactored to use Nimiq Mini App Injected Provider interface
     async function triggerWalletConnect(btnElement) {
       try {
-        btnElement.textContent = 'Opening Hub...';
-        const result = await hubApi.chooseAddress({ appName: 'PINAXX' });
-        if (result && result.address) {
-          connectedAddress = result.address;
+        btnElement.textContent = 'Connecting...';
+        
+        let accounts = [];
+        if (window.nimiq && typeof window.nimiq.request === 'function') {
+          accounts = await window.nimiq.request({ method: 'eth_requestAccounts' });
+        } else if (window.ethereum) {
+          accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        } else {
+          throw new Error('No Nimiq Mini App or Web3 provider detected in context.');
+        }
+
+        if (accounts && accounts.length > 0) {
+          connectedAddress = accounts[0];
           if (!isViewOnly) {
             localStorage.setItem('nimiq_connected_address', connectedAddress);
           }
@@ -443,6 +448,7 @@
         }
       } catch (error) {
         console.error('Wallet connection failed:', error);
+        alert('Provider Connection Failed: Please ensure you are running this app within Nimiq Pay or a Mini App container.');
         btnElement.textContent = isViewOnly ? 'Connect Wallet' : 'Connect Nimiq Wallet';
       }
     }
@@ -468,7 +474,7 @@
       modalConnectBtn.textContent = 'Connect Nimiq Wallet';
     });
 
-    // Dashboard Open/Close Toggle Behavior & View Mode Handling
+    // Dashboard Open/Close Toggle Behavior
     const dashContainer = document.getElementById('dashboard-container');
     const dashToggleBtn = document.getElementById('dashboard-toggle');
 
@@ -888,7 +894,6 @@
         }
       });
 
-      // Share Link Generation logic (Excludes owner wallet info)
       document.getElementById('shareBtn').addEventListener('click', () => {
         const galleryState = {
           config: {
@@ -907,14 +912,14 @@
         const shareUrl = `${window.location.origin}${window.location.pathname}?gallery=${encodedState}`;
 
         navigator.clipboard.writeText(shareUrl).then(() => {
-          alert('Gallery link copied to clipboard! Anyone opening this link will view your customized gallery layout without revealing your personal wallet address.');
+          alert('Gallery link copied to clipboard!');
         }).catch(() => {
           prompt('Copy your gallery link:', shareUrl);
         });
       });
     }
 
-    // 8. WASD & Keyboard Arrow Navigation Controls
+    // 8. Navigation Controls
     const keys = { 
       w: false, a: false, s: false, d: false,
       arrowup: false, arrowdown: false, arrowleft: false, arrowright: false 
