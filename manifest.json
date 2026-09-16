@@ -1,13 +1,13 @@
 {
-  "name": "Nimiq 3D Gallery",
-  "short_name": "3D Gallery",
+  "name": "PINAXX",
+  "short_name": "PINAXX",
   "description": "3D Web Gallery powered by Three.js and Nimiq",
-  "icon": "icon.png",
-  "start_url": "/",
+  "icon": "/icon.png",
+  "start_url": "https://your-domain.com/",
   "theme_color": "#1f253d",
   "scopes": ["address", "payments"],
   "mini_app": {
     "version": "1.0.0",
-    "supported_features": ["payment"]
+    "supported_features": ["ADDRESS"]
   }
 }
